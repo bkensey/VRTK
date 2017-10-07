@@ -177,6 +177,12 @@ namespace VRTK
         [Tooltip("Determines which controller can initiate a use action.")]
         public AllowedController allowedUseControllers = AllowedController.Both;
 
+        [Header("Stack Settings")]
+        [Tooltip("Determines if the object can be stacked on top of similar objects within a `VRTK_SnapDropZone`.")]
+        public bool isStackable = false;
+        [Tooltip("Used to determine whether objects are the same and therefore stackable within a `VRTK_SnapDropZone`.")]
+        public string objectID = "defaultInteractableObjectID";
+
         [Header("Custom Settings")]
 
         [Tooltip("An optional Highlighter to use when highlighting this Interactable Object. If this is left blank, then the first active highlighter on the same GameObject will be used, if one isn't found then a Material Color Swap Highlighter will be created at runtime.")]
@@ -280,6 +286,8 @@ namespace VRTK
         protected Transform previousParent;
         protected bool previousKinematicState;
         protected bool previousIsGrabbable;
+        protected bool[] previousColliderTriggerStates = new bool[0];
+        protected bool colliderStatesSaved = false;
         protected bool forcedDropped;
         protected bool forceDisabled;
         protected bool autoHighlighter = false;
@@ -701,6 +709,24 @@ namespace VRTK
         }
 
         /// <summary>
+        /// The SaveCurrentState method stores the states of the object's colliders.
+        /// </summary>
+        public virtual void SaveColliderStates(bool overwriteOriginalState)
+        {
+            if (colliderStatesSaved && overwriteOriginalState || !colliderStatesSaved)
+            {
+                Collider[] colliderTriggerStates = gameObject.GetComponentsInChildren<Collider>();
+                previousColliderTriggerStates = new bool[colliderTriggerStates.Length];
+                for (int i = 0; i < colliderTriggerStates.Length; i++)
+                {
+                    previousColliderTriggerStates[i] = colliderTriggerStates[i].isTrigger;
+                }
+              
+                colliderStatesSaved = true;
+            }
+        }
+
+        /// <summary>
         /// The GetNearTouchingObjects method is used to return the collecetion of valid game objects that are currently nearly touching this object.
         /// </summary>
         /// <returns>A list of game object of that are currently nearly touching the current object.</returns>
@@ -1110,6 +1136,29 @@ namespace VRTK
             if (!IsSwappable())
             {
                 isGrabbable = previousIsGrabbable;
+            }
+        }
+
+        public virtual void LoadPreviousColliderStates()
+        {
+            if (colliderStatesSaved)
+            {
+                Collider[] objectColliders = gameObject.GetComponentsInChildren<Collider>();
+                if (objectColliders.Length == previousColliderTriggerStates.Length)
+                {
+                    for (int i = 0; i < objectColliders.Length; i++)
+                    {
+                        objectColliders[i].isTrigger = previousColliderTriggerStates[i];
+                    }
+                }
+                else
+                {
+                    VRTK_Logger.Warn("`VRTK_InteractableObject` " + name + " now has a different number of colliders than saved collider states");
+                }
+            }
+            else
+            {
+                VRTK_Logger.Warn("`VRTK_InteractableObject` " + name + " was asked to load its prevous collider states when none have been saved.");
             }
         }
 
